@@ -29,6 +29,7 @@ See README.md for full details.
 */
 using System;
 using System.IO;
+using System.Text;
 using System.Windows.Forms;
 
 namespace FileProcessing
@@ -42,16 +43,75 @@ namespace FileProcessing
 		{
 			InitializeComponent();
 		}
-		/// <summary>
-		/// Handles the Click event of the Read button by loading the contents of the specified file into the display area.
-		/// </summary>
-		/// <param name="sender">The source of the event.</param>
-		/// <param name="e">The event data.</param>
-		private void btRead_Click(object sender, EventArgs e)
-		{			
-            string content = File.ReadAllText(tbFileName.Text);
-            rtbShow.Text = content;
-		}
+        /// <summary>
+        /// Handles the Click event of the Read button by loading the contents of the specified file into the display area.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The event data.</param>
+        private void btRead_Click(object sender, EventArgs e)
+        {
+            // เคลียร์หน้าจอแสดงผลก่อน
+            rtbShow.Clear();
+
+            string filePath = tbFileName.Text;
+
+            // 1. ตั้งค่า m, n และ filter (สำหรับทดสอบก่อน ถ้าบนหน้าจอมี TextBox ให้เปลี่ยนไปรับค่าจาก TextBox แทนได้)
+            int m = 100;           // บรรทัดเริ่มต้น
+            int n = 200;           // บรรทัดสิ้นสุด
+            string filter = "exe"; // ประเภทไฟล์ที่ต้องการหา
+
+            int currentLine = 0;
+
+            // ใช้ StringBuilder ในการต่อข้อความ (ทำงานเร็วกว่าและประหยัด Memory กว่าการบวก String ธรรมดา)
+            StringBuilder resultText = new StringBuilder();
+
+            try
+            {
+                // 2. ใช้ StreamReader เพื่ออ่านไฟล์ทีละบรรทัด (แก้ปัญหาโปรแกรมค้าง)
+                using (StreamReader reader = new StreamReader(filePath))
+                {
+                    string line;
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        currentLine++;
+
+                        // เงื่อนไขที่ 1: ตัดช่วง m-n 
+                        if (currentLine < m) continue;
+                        if (currentLine > n) break; // เกิน n แล้วหยุดทำงานเลย ประหยัดเวลา
+
+                        // เงื่อนไขที่ 2: กรองตามประเภทไฟล์ 
+                        // สมมติว่าแยกด้วยลูกน้ำ (,) และประเภทไฟล์อยู่คอลัมน์ที่ 3 (Index = 2)
+                        string[] columns = line.Split(',');
+                        if (columns.Length > 2)
+                        {
+                            string fileType = columns[2].Trim().Trim('"');
+
+                            if (fileType.Equals(filter, StringComparison.OrdinalIgnoreCase))
+                            {
+                                // ถ้าตรงเงื่อนไข ให้นำข้อความมาเก็บไว้ใน StringBuilder
+                                resultText.AppendLine($"[บรรทัด {currentLine}] : {line}");
+                            }
+                        }
+                    }
+                }
+
+                // 3. นำข้อความทั้งหมดที่คัดกรองแล้ว ไปแสดงผลที่ rtbShow
+                if (resultText.Length > 0)
+                {
+                    rtbShow.Text = resultText.ToString();
+                }
+                else
+                {
+                    rtbShow.Text = "ไม่พบข้อมูลที่ตรงกับเงื่อนไข";
+                }
+
+                MessageBox.Show("โหลดข้อมูลสำเร็จ!", "สถานะ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("เกิดข้อผิดพลาด: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
         /// <summary>
         /// Handles the Click event of the btReadCSV button, reading CSV data from the specified file and populating the
         /// DataGridView with its contents.

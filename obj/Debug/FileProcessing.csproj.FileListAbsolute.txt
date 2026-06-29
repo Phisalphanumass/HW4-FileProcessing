@@ -1,0 +1,11 @@
+C:\Users\lenovo\FileProcessing\bin\Debug\malware_500.csv
+C:\Users\lenovo\FileProcessing\bin\Debug\FileProcessing.exe.config
+C:\Users\lenovo\FileProcessing\bin\Debug\FileProcessing.exe
+C:\Users\lenovo\FileProcessing\bin\Debug\FileProcessing.pdb
+C:\Users\lenovo\FileProcessing\obj\Debug\FileProcessing.csproj.AssemblyReference.cache
+C:\Users\lenovo\FileProcessing\obj\Debug\FileProcessing.frmTextView.resources
+C:\Users\lenovo\FileProcessing\obj\Debug\FileProcessing.Properties.Resources.resources
+C:\Users\lenovo\FileProcessing\obj\Debug\FileProcessing.csproj.GenerateResource.cache
+C:\Users\lenovo\FileProcessing\obj\Debug\FileProcessing.csproj.CoreCompileInputs.cache
+C:\Users\lenovo\FileProcessing\obj\Debug\FileProcessing.exe
+C:\Users\lenovo\FileProcessing\obj\Debug\FileProcessing.pdb
