@@ -56,9 +56,25 @@ namespace FileProcessing
             string filePath = tbFileName.Text;
 
             // 1. ตั้งค่า m, n และ filter (สำหรับทดสอบก่อน ถ้าบนหน้าจอมี TextBox ให้เปลี่ยนไปรับค่าจาก TextBox แทนได้)
-            int m = 100;           // บรรทัดเริ่มต้น
-            int n = 200;           // บรรทัดสิ้นสุด
-            string filter = "exe"; // ประเภทไฟล์ที่ต้องการหา
+            int m = 0;
+            int n = 0;
+
+            // 1. ดึงค่าจากหน้าจอและดัก Error กรณีผู้ใช้ไม่ได้กรอกเป็นตัวเลข
+            if (!int.TryParse(txtM.Text, out m) || !int.TryParse(txtN.Text, out n))
+            {
+                MessageBox.Show("กรุณากรอกระบุช่วงบรรทัด m และ n เป็นตัวเลขให้ถูกต้อง", "ข้อมูลไม่ถูกต้อง", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return; // หยุดการทำงานทันที
+            }
+
+            // 2. ดัก Error กรณีผู้ใช้ใส่ค่า m มากกว่า n (ตรงกับ Test Case TC04 พอดี!)
+            if (m > n)
+            {
+                MessageBox.Show("ค่าบรรทัดเริ่มต้น (m) ต้องไม่มากกว่าค่าบรรทัดสิ้นสุด (n)", "ข้อมูลไม่ถูกต้อง", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // 3. ดึงค่า Filter จากหน้าจอ (ใช้ .Trim() เพื่อตัดช่องว่างหัวท้ายทิ้งเผื่อผู้ใช้เผลอกด Spacebar)
+            string filter = txtFilter.Text.Trim();
 
             int currentLine = 0;
 
@@ -72,7 +88,8 @@ namespace FileProcessing
                 {
                     string line;
                     while ((line = reader.ReadLine()) != null)
-                    {
+                    {   
+                        if (line.StartsWith("#")) continue;
                         currentLine++;
 
                         // เงื่อนไขที่ 1: ตัดช่วง m-n 
@@ -82,9 +99,9 @@ namespace FileProcessing
                         // เงื่อนไขที่ 2: กรองตามประเภทไฟล์ 
                         // สมมติว่าแยกด้วยลูกน้ำ (,) และประเภทไฟล์อยู่คอลัมน์ที่ 3 (Index = 2)
                         string[] columns = line.Split(',');
-                        if (columns.Length > 2)
+                        if (columns.Length > 6)
                         {
-                            string fileType = columns[2].Trim().Trim('"');
+                            string fileType = columns[6].Trim().Trim('"');
 
                             if (fileType.Equals(filter, StringComparison.OrdinalIgnoreCase))
                             {
@@ -119,60 +136,127 @@ namespace FileProcessing
         /// <param name="sender">The source of the event.</param>
         /// <param name="e">The event data.</param>
 		private void btReadCSV_Click(object sender, EventArgs e)
-		{
-            using (StreamReader srReader = new StreamReader(tbFileName.Text))
+        {
+            // 1. เคลียร์ข้อมูลเก่าและโครงสร้างคอลัมน์เก่าใน DataGridView ทิ้งก่อนทุกครั้ง
+            dgvData.Rows.Clear();
+            dgvData.Columns.Clear();
+
+            // 2. ดึงค่า m และ n จาก TextBox บนหน้าจอ พร้อมดัก Error
+            int m = 0;
+            int n = 0;
+
+            // หมายเหตุ: ถ้า TextBox บนแท็บ CSV ของคุณตั้งชื่อเป็นอย่างอื่น ให้เปลี่ยนชื่อตรง txtM และ txtN นะครับ
+            if (!int.TryParse(txtM.Text, out m) || !int.TryParse(txtN.Text, out n))
             {
-                string strLine; // Variable to hold each line read from the file
-				bool bHeaderRead = false;   // Flag to indicate whether the header line has been read
+                MessageBox.Show("กรุณากรอกระบุช่วงบรรทัด m และ n เป็นตัวเลขให้ถูกต้อง", "ข้อมูลไม่ถูกต้อง", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
 
-				// Main loop: Read the file line by line
-				while ((strLine = srReader.ReadLine()) != null)
+            if (m > n)
+            {
+                MessageBox.Show("ค่าบรรทัดเริ่มต้น (m) ต้องไม่มากกว่าค่าบรรทัดสิ้นสุด (n)", "ข้อมูลไม่ถูกต้อง", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // 3. ดึงค่าตัวกรองประเภทไฟล์ (File type)
+            string filter = txtFilter.Text.Trim();
+
+            string filePath = tbFileName.Text;
+            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+            {
+                MessageBox.Show("กรุณาเลือกไฟล์ CSV ที่ต้องการเปิดก่อนครับ", "ไม่พบไฟล์", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            int currentDataLine = 0; // ตัวนับบรรทัดข้อมูลจริง (ไม่นับบรรทัด #)
+
+            try
+            {
+                using (StreamReader srReader = new StreamReader(filePath))
                 {
-                    string[] strHeaders_arr = null;
-					// Skip comment lines and check for header line
-					if (strLine.StartsWith("#")) 
-                    { 
-                        if (    strLine.Length > 8
-                           &&   strLine.Substring(0, 8).Equals("#HEADER") 
-                           )
-                        {
-							// Read the header line and split it into an array of headers
-							strHeaders_arr = strLine.Substring(8).Split(',');
-						}
-                        continue;
-                    }
-					// Split the current line into an array of values
-					string[] strValues_arr = strLine.Split(',');
+                    string strLine;
+                    bool bHeaderRead = false;
 
-					// If the header has not been read yet, add the headers to the DataGridView columns
-					if (!bHeaderRead)
+                    // Main loop: อ่านไฟล์ทีละบรรทัด
+                    while ((strLine = srReader.ReadLine()) != null)
                     {
-						// Add the headers to the DataGridView columns, using the header names from the header line if available
-						foreach (string strHeader in strValues_arr)
+                        // ตรวจสอบและจัดการบรรทัดที่เป็น Comment (#)
+                        if (strLine.StartsWith("#"))
                         {
-                            if ( strHeaders_arr == null )
-                                dgvData.Columns.Add(strHeader.Trim(), strHeader.Trim());
-                            else
-                                dgvData.Columns.Add(strHeader.Trim(), strHeaders_arr[dgvData.Columns.Count].Trim());
-						}
-                        bHeaderRead = true;
-                    }
-                    else
-                    {
-						// Add the values to the DataGridView rows
-						dgvData.Rows.Add(strValues_arr);
-                    }
-				}   // Main loop: Read the file line by line
-			}
+                            // 🌟 แก้ไขบั๊กหัวตาราง: ดึง #HEADER มาสร้างคอลัมน์ทันทีที่เจอ และทำแค่รอบเดียว
+                            if (!bHeaderRead && strLine.Length > 8 && strLine.Substring(0, 8).Equals("#HEADER"))
+                            {
+                                string[] strHeaders_arr = strLine.Substring(8).Split(',');
+                                foreach (string strHeader in strHeaders_arr)
+                                {
+                                    string cleanHeader = strHeader.Trim().Trim('"');
+                                    dgvData.Columns.Add(cleanHeader, cleanHeader);
+                                }
+                                bHeaderRead = true;
+                            }
+                            continue; // ข้ามบรรทัดที่เป็น Comment ไปทำงานบรรทัดถัดไป
+                        }
 
-		}
-		/// <summary>
-		/// Handles the Click event of the Browse button, allowing the user to select a file and displaying its path in the
-		/// file name text box.
-		/// </summary>
-		/// <param name="sender">The source of the event.</param>
-		/// <param name="e">The event data.</param>
-		private void btBrowse_Click(object sender, EventArgs e)
+                        // นับบรรทัดที่เป็นข้อมูลจริง
+                        currentDataLine++;
+
+                        // 🌟 ล็อกช่วงบรรทัด m และ n (ช่วยให้รองรับไฟล์ 1 ล้านเรคคอร์ดได้ โปรแกรมไม่ค้าง)
+                        if (currentDataLine < m) continue;
+                        if (currentDataLine > n) break; // ถ้าอ่านเกินบรรทัด n แล้ว ให้ break ออกจากลูปทันที เพื่อประหยัดเวลา
+
+                        // ตัดแบ่งข้อมูลในแถวด้วยเครื่องหมาย Comma (,)
+                        string[] strValues_arr = strLine.Split(',');
+
+                        // ล้างเครื่องหมายคำพูดคู่ (") ออกจากข้อมูลทุกช่องเพื่อให้แสดงผลในตารางสวยงาม
+                        for (int i = 0; i < strValues_arr.Length; i++)
+                        {
+                            strValues_arr[i] = strValues_arr[i].Trim().Trim('"');
+                        }
+
+                        // 🌟 ดึงระบบกรองประเภทไฟล์ (File type) มาใช้ร่วมด้วย (ตรวจสอบคอลัมน์ที่ 7 หรือ Index 6)
+                        if (!string.IsNullOrEmpty(filter))
+                        {
+                            if (strValues_arr.Length > 6)
+                            {
+                                string fileType = strValues_arr[6];
+                                // ถ้าประเภทไฟล์ไม่ตรงกับที่กรอกในช่อง File type ให้ข้ามแถวนี้ไป ไม่เอาลงตาราง
+                                if (!fileType.Equals(filter, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    continue;
+                                }
+                            }
+                        }
+
+                        // กรณีฉุกเฉิน: ถ้าในไฟล์ไม่มีบรรทัด #HEADER ให้สร้างคอลัมน์เริ่มต้นจากแถวข้อมูลแรกแก้ขัด
+                        if (!bHeaderRead)
+                        {
+                            for (int i = 0; i < strValues_arr.Length; i++)
+                            {
+                                string defaultCol = $"Column {i + 1}";
+                                dgvData.Columns.Add(defaultCol, defaultCol);
+                            }
+                            bHeaderRead = true;
+                        }
+
+                        // นำข้อมูลที่ผ่านการกรองทั้งหมด หยอดลงแถวของ DataGridView
+                        dgvData.Rows.Add(strValues_arr);
+                    }
+                }
+
+                MessageBox.Show($"โหลดข้อมูลลงตารางสำเร็จ! แสดงข้อมูลบรรทัดที่ {m} ถึง {n}", "สถานะ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("เกิดข้อผิดพลาดในการเปิดไฟล์ CSV: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+        /// <summary>
+        /// Handles the Click event of the Browse button, allowing the user to select a file and displaying its path in the
+        /// file name text box.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The event data.</param>
+        private void btBrowse_Click(object sender, EventArgs e)
 		{
 			using (OpenFileDialog ofd = new OpenFileDialog())
 			{
@@ -183,5 +267,7 @@ namespace FileProcessing
 				}
 			}
 		}
-	}   // End of frmTextView class
+
+
+    }   // End of frmTextView class
 }

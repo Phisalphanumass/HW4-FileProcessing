@@ -1,1 +1,3 @@
 "*.csv" 
+.vs/ 
+data/full.csv 
